@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plum SDE Assignment - Problem Statement 4: AI Amount Detection</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <header class="navbar">
+      <div class="brand">
+        <span class="logo-badge">Plum Assignment</span>
+        <h1>AI-Powered Amount Detection in Medical Documents</h1>
+      </div>
+      <div class="nav-links">
+        <a href="/docs" target="_blank" class="nav-btn">API Docs (Swagger)</a>
+        <a href="/health" target="_blank" class="nav-btn">Health Check</a>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <!-- Input Panel -->
+      <section class="card input-card">
+        <div class="card-header">
+          <h2>Input Document</h2>
+          <div class="tab-buttons">
+            <button class="tab-btn active" id="tab-text-btn" onclick="switchTab('text')">Text Input</button>
+            <button class="tab-btn" id="tab-image-btn" onclick="switchTab('image')">Image Upload (OCR)</button>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <!-- Text Mode -->
+          <div id="text-tab-content">
+            <div class="presets-bar">
+              <span class="preset-label">Quick Test Presets:</span>
+              <button class="preset-pill" onclick="loadPreset('sample1')">Sample 1 (Assignment Text)</button>
+              <button class="preset-pill" onclick="loadPreset('sample2')">Sample 2 (Noisy OCR Text)</button>
+              <button class="preset-pill" onclick="loadPreset('sample3')">Sample 3 (Hospital Invoice)</button>
+              <button class="preset-pill alert-preset" onclick="loadPreset('noisy')">Sample 4 (Guardrail Test)</button>
+            </div>
+
+            <textarea id="text-input" rows="4" placeholder="Enter receipt or bill text here... e.g. Total: INR 1200 | Paid: 1000 | Due: 200 | Discount: 10%"></textarea>
+
+            <div class="action-bar">
+              <button class="primary-btn" onclick="processText()">
+                <span class="btn-icon">⚡</span> Run Full Pipeline (Steps 1-4)
+              </button>
+              <button class="secondary-btn" onclick="clearInput()">Clear</button>
+            </div>
+          </div>
+
+          <!-- Image Mode -->
+          <div id="image-tab-content" style="display: none;">
+            <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+              <input type="file" id="file-input" accept="image/*" style="display:none;" onchange="handleFileSelect(event)">
+              <div class="drop-content">
+                <div class="upload-icon">📷</div>
+                <p><strong>Click to select</strong> or drag and drop a medical bill image</p>
+                <span class="subtext">Supports PNG, JPG, JPEG, TIFF (scanned or crumpled receipts)</span>
+              </div>
+              <img id="image-preview" class="image-preview" style="display: none;" alt="Bill Preview">
+            </div>
+
+            <div class="sample-images-bar">
+              <span class="preset-label">Or use generated test receipt:</span>
+              <button class="preset-pill" onclick="loadSampleImage('clean')">Clean Bill Sample</button>
+              <button class="preset-pill" onclick="loadSampleImage('noisy')">Noisy / Crumpled Sample</button>
+              <button class="preset-pill alert-preset" onclick="loadSampleImage('empty')">No-Amounts Image (Guardrail)</button>
+            </div>
+
+            <div class="action-bar">
+              <button class="primary-btn" id="process-image-btn" onclick="processImage()" disabled>
+                <span class="btn-icon">⚡</span> Run OCR & Pipeline
+              </button>
+              <button class="secondary-btn" onclick="clearImage()">Remove Image</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Status & Alert Area -->
+      <div id="status-banner" style="display: none;" class="status-banner"></div>
+
+      <!-- Pipeline Steps Display Grid -->
+      <section class="pipeline-section">
+        <h2 class="section-title">End-to-End Pipeline Execution Trace</h2>
+
+        <div class="steps-grid">
+          <!-- Step 1 Card -->
+          <div class="step-card" id="step1-card">
+            <div class="step-header">
+              <span class="step-badge">Step 1</span>
+              <h3>OCR / Token Extraction</h3>
+            </div>
+            <div class="step-body">
+              <div class="metric-row">
+                <span class="metric-label">Confidence:</span>
+                <span class="metric-val" id="step1-conf">-</span>
+              </div>
+              <div class="metric-row">
+                <span class="metric-label">Currency Hint:</span>
+                <span class="metric-val badge-currency" id="step1-curr">-</span>
+              </div>
+              <div class="token-container">
+                <span class="metric-label">Raw Tokens:</span>
+                <div class="token-chips" id="step1-tokens">
+                  <span class="chip-placeholder">Awaiting execution...</span>
+                </div>
+              </div>
+              <pre class="json-box"><code id="step1-json">{}</code></pre>
+            </div>
+          </div>
+
+          <!-- Step 2 Card -->
+          <div class="step-card" id="step2-card">
+            <div class="step-header">
+              <span class="step-badge">Step 2</span>
+              <h3>Numeric Normalization</h3>
+            </div>
+            <div class="step-body">
+              <div class="metric-row">
+                <span class="metric-label">Confidence:</span>
+                <span class="metric-val" id="step2-conf">-</span>
+              </div>
+              <div class="token-container">
+                <span class="metric-label">Normalized Amounts:</span>
+                <div class="token-chips" id="step2-amounts">
+                  <span class="chip-placeholder">Awaiting execution...</span>
+                </div>
+              </div>
+              <p class="step-note">Excludes percentages (rates) and repairs OCR digit errors (e.g. l200 &rarr; 1200).</p>
+              <pre class="json-box"><code id="step2-json">{}</code></pre>
+            </div>
+          </div>
+
+          <!-- Step 3 Card -->
+          <div class="step-card" id="step3-card">
+            <div class="step-header">
+              <span class="step-badge">Step 3</span>
+              <h3>Classification by Context</h3>
+            </div>
+            <div class="step-body">
+              <div class="metric-row">
+                <span class="metric-label">Confidence:</span>
+                <span class="metric-val" id="step3-conf">-</span>
+              </div>
+              <div class="classified-list" id="step3-list">
+                <div class="chip-placeholder">Awaiting execution...</div>
+              </div>
+              <pre class="json-box"><code id="step3-json">{}</code></pre>
+            </div>
+          </div>
+
+          <!-- Step 4 Card (Final Output) -->
+          <div class="step-card highlight-step" id="step4-card">
+            <div class="step-header">
+              <span class="step-badge success-badge">Step 4</span>
+              <h3>Final Output (Structured JSON)</h3>
+            </div>
+            <div class="step-body">
+              <div class="metric-row">
+                <span class="metric-label">Status:</span>
+                <span class="metric-val badge-status" id="step4-status">-</span>
+              </div>
+              <div class="metric-row">
+                <span class="metric-label">Final Currency:</span>
+                <span class="metric-val badge-currency" id="step4-curr">-</span>
+              </div>
+              <div class="validation-box" id="validation-box" style="display:none;">
+                <strong>AI & Arithmetic Validation:</strong>
+                <div id="validation-notes"></div>
+              </div>
+              <pre class="json-box highlight-json"><code id="step4-json">{}</code></pre>
+              <button class="copy-btn" onclick="copyFinalJson()">Copy Final Output JSON</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p>Plum SDE Intern Assignment &bull; Problem Statement 4: AI-Powered Amount Detection in Medical Documents</p>
+    </footer>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

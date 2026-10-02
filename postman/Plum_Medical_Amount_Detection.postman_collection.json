@@ -1,0 +1,166 @@
+{
+  "info": {
+    "_postman_id": "c76d1e48-912b-4fa8-a15d-8b0123ef61a4",
+    "name": "Plum SDE Assignment - Problem 4: AI Medical Amount Detection",
+    "description": "Postman Collection for testing all individual pipeline steps, full end-to-end processing, image OCR, and guardrails.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "System Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        },
+        "description": "Check service liveness and version info."
+      }
+    },
+    {
+      "name": "Step 1: Extract Tokens (Text)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"text\": \"Total: INR 1200 | Paid: 1000 | Due: 200 | Discount: 10%\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/step1-extract",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "step1-extract"]
+        },
+        "description": "Extract raw numeric and percentage tokens, infer currency hint, and compute confidence."
+      }
+    },
+    {
+      "name": "Step 2: Normalize Amounts",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"raw_tokens\": [\"1200\", \"1000\", \"200\", \"10%\"]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/step2-normalize",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "step2-normalize"]
+        },
+        "description": "Repairs OCR typos (e.g. l200 -> 1200), excludes non-amount rates like 10%, and maps to clean numbers."
+      }
+    },
+    {
+      "name": "Step 3: Classify by Context",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"normalized_amounts\": [1200, 1000, 200],\n  \"context_text\": \"Total: INR 1200 | Paid: 1000 | Due: 200\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/step3-classify",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "step3-classify"]
+        },
+        "description": "Labels amounts by surrounding text context into total_bill, paid, due, etc."
+      }
+    },
+    {
+      "name": "Full Pipeline: Process Text (End-to-End)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"text\": \"Total: INR 1200 | Paid: 1000 | Due: 200 | Discount: 10%\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/process-text",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "process-text"]
+        },
+        "description": "Runs complete Steps 1-4 on typed/raw text and returns Step 4 Final Output JSON."
+      }
+    },
+    {
+      "name": "Full Pipeline: Process Image (Upload)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "app/samples/sample_noisy.png"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/process-image",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "process-image"]
+        },
+        "description": "Upload a scanned/crumpled bill image, run OCR, and execute full pipeline."
+      }
+    },
+    {
+      "name": "Full Pipeline Diagnostic: All Intermediate Steps",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"text\": \"T0tal: Rs l200 | Pald: 1000 | Due: 200\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/pipeline/steps-text",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "pipeline", "steps-text"]
+        },
+        "description": "Returns outputs from all 4 steps plus AI & mathematical validation notes."
+      }
+    },
+    {
+      "name": "Guardrail Test: No Amounts / Pure Noise",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"text\": \"Clinical note: Patient has mild viral fever. Advised bed rest and hydration.\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/process-text",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "process-text"]
+        },
+        "description": "Triggers the guardrail exit condition: no_amounts_found / document too noisy."
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000"
+    }
+  ]
+}
